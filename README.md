@@ -1,57 +1,91 @@
-# SmartFace Attendance
+# SmartFace Attendance System
 
-AI-based attendance management starter project using React + FastAPI + OpenCV.
+An AI-based face recognition attendance management system built with
+**React, FastAPI, Python and OpenCV**.
 
-## Features
-- Admin dashboard
-- Student registration
-- Attendance marking API
-- Attendance history
-- CSV export
-- Real face embedding registration and recognition with `opencv-contrib-python` (LBPH)
-- SQLite database for easy local setup
-- One-face-at-a-time registration
-- Recognition endpoint that can mark attendance automatically
-- React frontend
+The project is designed to automate attendance using face recognition
+while providing a modern web interface for managing attendance data.
 
-## Project Structure
-- `backend/` FastAPI API, SQLite database and OpenCV face service
-- `frontend/` React/Vite dashboard
-- `docs/` setup and architecture notes
+---
 
-## Run Backend
-```bash
-cd backend
-python -m venv venv
-# Windows: venv\Scripts\activate
-# macOS/Linux: source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
+## 🚀 Features
 
-API: http://127.0.0.1:8000
-Docs: http://127.0.0.1:8000/docs
+- Face detection using OpenCV
+- Face recognition using LBPH
+- Automated attendance marking
+- FastAPI backend
+- React-based frontend
+- Attendance data management
+- SQLite database support
+- Modular backend architecture
+- Responsive web interface
+- Ready for future AI/ML improvements
 
-## Run Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
+---
 
-Frontend: http://localhost:5173
+## 🛠️ Technologies Used
 
-## Notes
-This repository is a clean academic/prototype foundation. For production use, add authentication, HTTPS, liveness detection, encrypted biometric storage, access controls and a proper consent/privacy workflow.
+### Frontend
+- React
+- JavaScript
+- HTML5
+- CSS3
+- Vite
 
+### Backend
+- Python
+- FastAPI
+- OpenCV
+- LBPH Face Recognizer
 
-## Face Recognition Setup
-The project uses the `face-recognition` Python package to create LBPH face templates. During registration, a single face is encoded and saved locally. During recognition, the uploaded image is compared with registered embeddings.
+### Database
+- SQLite
 
-For a demo:
-1. Register students.
-2. Register one clear face image for each student.
-3. Upload a photo containing one or more faces.
-4. The `/api/recognize` endpoint identifies matches and marks today's attendance.
+### Tools
+- Git
+- GitHub
+- VS Code
 
-For production, add liveness detection, authentication, encrypted biometric storage, retention rules and explicit consent.
+---
+
+## 📁 Project Structure
+
+```text
+SmartFace-Attendance-System/
+│
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── database.py
+│   │   ├── face_service.py
+│   │   ├── main.py
+│   │   ├── models.py
+│   │   ├── recognition_service.py
+│   │   └── schemas.py
+│   │
+│   ├── data/
+│   │   └── haarcascade_frontalface_default.xml
+│   │
+│   ├── face_encodings/
+│   ├── requirements.txt
+│   └── .env.example
+│
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── styles.css
+│   │
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   └── vite.config.js
+│
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── PROJECT_REPORT_OUTLINE.md
+│   ├── ROADMAP.md
+│   └── SETUP_FACE_RECOGNITION.md
+│
+├── README.md
+└── .gitignore
