@@ -46,6 +46,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
 # =========================================================
 # CORS
 # =========================================================
@@ -53,9 +54,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://smartface-attendance-frontend.onrender.com",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "https://smartface-attendance-frontend.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -98,8 +99,8 @@ def cleanup_duplicate_attendance():
     Keeps only one attendance record for each
     student on each date.
 
-    This cleans old duplicate records created
-    by previous live-camera recognition requests.
+    This removes old duplicate attendance records
+    created by previous recognition requests.
     """
 
     db = next(get_db())
@@ -125,16 +126,12 @@ def cleanup_duplicate_attendance():
         deleted = 0
 
         for group in groups:
-
             duplicates = (
                 db.query(Attendance)
                 .filter(
-                    Attendance.student_id
-                    == group.student_id,
-                    Attendance.date
-                    == group.date,
-                    Attendance.id
-                    != group.keep_id,
+                    Attendance.student_id == group.student_id,
+                    Attendance.date == group.date,
+                    Attendance.id != group.keep_id,
                 )
                 .all()
             )
@@ -178,7 +175,19 @@ def root():
 
 
 # =========================================================
-# STUDENTS
+# HEALTH CHECK
+# =========================================================
+
+@app.get("/health")
+def health():
+    return {
+        "status": "healthy",
+        "service": "SmartFace Attendance API",
+    }
+
+
+# =========================================================
+# STUDENTS - GET ALL
 # =========================================================
 
 @app.get(
@@ -211,8 +220,7 @@ def create_student(
     existing = (
         db.query(Student)
         .filter(
-            Student.roll_number
-            == payload.roll_number
+            Student.roll_number == payload.roll_number
         )
         .first()
     )
@@ -228,6 +236,60 @@ def create_student(
     )
 
     db.add(student)
+    db.commit()
+    db.refresh(student)
+
+    return student
+
+
+# =========================================================
+# UPDATE STUDENT
+# =========================================================
+
+@app.put(
+    "/api/students/{student_id}",
+    response_model=StudentOut,
+)
+def update_student(
+    student_id: int,
+    payload: StudentCreate,
+    db: Session = Depends(get_db),
+):
+
+    student = (
+        db.query(Student)
+        .filter(
+            Student.id == student_id
+        )
+        .first()
+    )
+
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Student not found",
+        )
+
+    existing = (
+        db.query(Student)
+        .filter(
+            Student.roll_number == payload.roll_number,
+            Student.id != student_id,
+        )
+        .first()
+    )
+
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="Roll number already exists",
+        )
+
+    student.name = payload.name
+    student.roll_number = payload.roll_number
+    student.branch = payload.branch
+    student.semester = payload.semester
+
     db.commit()
     db.refresh(student)
 
@@ -277,8 +339,7 @@ def delete_student(
     (
         db.query(Attendance)
         .filter(
-            Attendance.student_id
-            == student_id
+            Attendance.student_id == student_id
         )
         .delete(
             synchronize_session=False
@@ -291,56 +352,7 @@ def delete_student(
     return {
         "message": "Student deleted successfully"
     }
-    # =========================================================
-# UPDATE STUDENT
-# =========================================================
 
-@app.put(
-    "/api/students/{student_id}",
-    response_model=StudentOut,
-)
-def update_student(
-    student_id: int,
-    payload: StudentCreate,
-    db: Session = Depends(get_db),
-):
-    student = (
-        db.query(Student)
-        .filter(Student.id == student_id)
-        .first()
-    )
-
-    if not student:
-        raise HTTPException(
-            status_code=404,
-            detail="Student not found",
-        )
-
-    # Check duplicate roll number
-    existing = (
-        db.query(Student)
-        .filter(
-            Student.roll_number == payload.roll_number,
-            Student.id != student_id,
-        )
-        .first()
-    )
-
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail="Roll number already exists",
-        )
-
-    student.name = payload.name
-    student.roll_number = payload.roll_number
-    student.branch = payload.branch
-    student.semester = payload.semester
-
-    db.commit()
-    db.refresh(student)
-
-    return student
 
 # =========================================================
 # MANUAL ATTENDANCE
@@ -358,8 +370,7 @@ def mark_attendance(
     student = (
         db.query(Student)
         .filter(
-            Student.id
-            == payload.student_id
+            Student.id == payload.student_id
         )
         .first()
     )
@@ -372,23 +383,18 @@ def mark_attendance(
 
     now = datetime.now()
 
-    today = now.strftime(
-        "%Y-%m-%d"
-    )
+    today = now.strftime("%Y-%m-%d")
 
-    # =====================================================
-    # PREVENT DUPLICATE SAME-DAY ATTENDANCE
-    # =====================================================
-
+    # Prevent duplicate same-day attendance
     already = (
         db.query(Attendance)
         .filter(
-            Attendance.student_id
-            == student.id,
-            Attendance.date
-            == today,
+            Attendance.student_id == student.id,
+            Attendance.date == today,
         )
-        .order_by(Attendance.id.asc())
+        .order_by(
+            Attendance.id.asc()
+        )
         .first()
     )
 
@@ -450,14 +456,7 @@ def stats(
         .count()
     )
 
-    # =====================================================
-    # IMPORTANT:
-    # Count DISTINCT students, not attendance rows.
-    #
-    # So even if old duplicate records exist,
-    # Present Today cannot become 4 for one student.
-    # =====================================================
-
+    # Count DISTINCT students present today
     present = (
         db.query(
             func.count(
@@ -534,25 +533,32 @@ async def detect_faces(
         ) as f:
             f.write(data)
 
-        faces = (
-            face_service
-            .detect_faces(
-                temp_path
-            )
+        faces = face_service.detect_faces(
+            temp_path
         )
 
         return {
             "faces": faces
         }
 
+    except Exception as exc:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Face detection failed: {exc}",
+        )
+
     finally:
 
         if os.path.exists(
             temp_path
         ):
-            os.remove(
-                temp_path
-            )
+            try:
+                os.remove(
+                    temp_path
+                )
+            except Exception:
+                pass
 
 
 # =========================================================
@@ -605,8 +611,7 @@ def export_attendance(
         media_type="text/csv",
         headers={
             "Content-Disposition":
-                "attachment; "
-                "filename=attendance.csv"
+                "attachment; filename=attendance.csv"
         },
     )
 
@@ -627,8 +632,7 @@ async def register_face(
     student = (
         db.query(Student)
         .filter(
-            Student.id
-            == student_id
+            Student.id == student_id
         )
         .first()
     )
@@ -740,8 +744,7 @@ async def recognize_face(
     try:
 
         matches = (
-            recognition_service
-            .recognize(
+            recognition_service.recognize(
                 image_bytes,
                 students_list,
             )
@@ -771,8 +774,7 @@ async def recognize_face(
     attendance_marked = []
     recognized_students = []
 
-    # Prevent processing the same student twice
-    # if recognition service returns duplicate matches.
+    # Prevent duplicate student processing
     processed_student_ids = set()
 
     # =====================================================
@@ -806,8 +808,7 @@ async def recognize_face(
         student = (
             db.query(Student)
             .filter(
-                Student.id
-                == student_id
+                Student.id == student_id
             )
             .first()
         )
@@ -830,9 +831,7 @@ async def recognize_face(
                 "branch":
                     student.branch,
                 "distance":
-                    match.get(
-                        "distance"
-                    ),
+                    match.get("distance"),
             }
         )
 
@@ -857,10 +856,8 @@ async def recognize_face(
         existing = (
             db.query(Attendance)
             .filter(
-                Attendance.student_id
-                == student.id,
-                Attendance.date
-                == today,
+                Attendance.student_id == student.id,
+                Attendance.date == today,
             )
             .order_by(
                 Attendance.id.asc()
